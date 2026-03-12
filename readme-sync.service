@@ -1,0 +1,19 @@
+[Unit]
+Description=README Sync Pipeline - Webhook Listener (Multi-Repo)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/readme-sync-pipeline
+EnvironmentFile=/home/ubuntu/readme-sync-pipeline/.env
+ExecStart=/home/ubuntu/readme-sync-pipeline/venv/bin/uvicorn \
+    app:app \
+    --host 0.0.0.0 \
+    --port 5000 \
+    --workers 1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
