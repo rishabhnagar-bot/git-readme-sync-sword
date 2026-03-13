@@ -1,5 +1,6 @@
 import hmac
 import hashlib
+import json
 import logging
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
 from fastapi.responses import JSONResponse
@@ -13,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="README Sync Pipeline")
+app = FastAPI(title="README Sync Pipeline (Multi-Repo)")
 
 
 def verify_github_signature(payload: bytes, signature: str | None) -> bool:
@@ -33,13 +34,13 @@ def verify_github_signature(payload: bytes, signature: str | None) -> bool:
     return hmac.compare_digest(expected, signature)
 
 
-def run_pipeline_safe():
+def run_pipeline_safe(repo_name: str, clone_url: str):
     """Wrapper to catch and log errors in background task."""
     try:
-        result = run_pipeline()
-        logger.info(f"Pipeline result: {result}")
+        result = run_pipeline(repo_name, clone_url)
+        logger.info(f"Pipeline result for {repo_name}: {result}")
     except Exception:
-        logger.exception("Pipeline failed in background task.")
+        logger.exception(f"Pipeline failed for {repo_name}.")
 
 
 @app.post("/webhook")
@@ -54,11 +55,13 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 
     # 2. Only act on push events
     event = request.headers.get("X-GitHub-Event", "")
+    if event == "ping":
+        return {"status": "pong"}
     if event != "push":
         return {"status": "ignored", "event": event}
 
-    # 3. Parse payload
-    payload = await request.json()
+    # 3. Parse payload from the body we already read
+    payload = json.loads(body)
 
     # 4. Only act on pushes to the target branch
     ref = payload.get("ref", "")
@@ -67,19 +70,32 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         logger.info(f"Push to {ref}, ignoring (watching {target_ref}).")
         return {"status": "ignored", "ref": ref}
 
-    # 5. Skip if pusher is our bot (loop prevention)
+    # 5. Skip if pusher is our bot
     pusher = payload.get("pusher", {}).get("name", "")
     if pusher == config.GIT_USER_NAME:
         logger.info("Push from bot, ignoring.")
         return {"status": "ignored", "reason": "bot push"}
 
-    # 6. Run pipeline in background so GitHub gets a fast response
-    logger.info(f"Push to {config.GIT_BRANCH} detected. Queuing pipeline...")
-    background_tasks.add_task(run_pipeline_safe)
+    # 6. Extract repo info from payload
+    repo_info = payload.get("repository", {})
+    repo_name = repo_info.get("name", "")
+    clone_url = repo_info.get("ssh_url", "")
+
+    if not repo_name or not clone_url:
+        logger.error("Could not extract repo name or clone URL from payload.")
+        raise HTTPException(status_code=400, detail="Missing repository info")
+
+    # 7. Run pipeline in background
+    logger.info(f"Push to {repo_name}/{config.GIT_BRANCH} detected. Queuing pipeline...")
+    background_tasks.add_task(run_pipeline_safe, repo_name, clone_url)
 
     return JSONResponse(
         status_code=202,
-        content={"status": "accepted", "message": "Pipeline queued"}
+        content={
+            "status": "accepted",
+            "repo": repo_name,
+            "message": "Pipeline queued"
+        }
     )
 
 
@@ -88,12 +104,17 @@ async def health():
     return {"status": "ok"}
 
 
-@app.post("/trigger")
-async def manual_trigger(background_tasks: BackgroundTasks):
-    """Manual trigger for testing."""
-    logger.info("Manual pipeline trigger.")
-    background_tasks.add_task(run_pipeline_safe)
+@app.post("/trigger/{repo_name}")
+async def manual_trigger(repo_name: str, background_tasks: BackgroundTasks):
+    """Manual trigger for a specific repo (for testing)."""
+    logger.info(f"Manual pipeline trigger for {repo_name}.")
+
+    # For manual triggers, construct the clone URL from convention
+    # Adjust this if your GitHub org/user is different
+    clone_url = ""  # Will use existing clone if already on disk
+
+    background_tasks.add_task(run_pipeline_safe, repo_name, clone_url)
     return JSONResponse(
         status_code=202,
-        content={"status": "accepted", "message": "Pipeline queued"}
+        content={"status": "accepted", "repo": repo_name, "message": "Pipeline queued"}
     )
