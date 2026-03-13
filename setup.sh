@@ -7,10 +7,10 @@ echo "  (Multi-Repo Version)"
 echo "========================================="
 
 # --- Configuration (edit these) ---
-GITHUB_USER="rishabhnagar-bot"
+GITHUB_USER="your-github-username"
 CHATBOT_REPO="assets-chatbot"
 REPOS_DIR="/home/ubuntu/repos"
-APP_DIR="/home/ubuntu/readme-sync-pipeline"
+APP_DIR="/home/ubuntu/git-readme-sync-sword"
 
 # --- Install dependencies ---
 echo "📦 Installing system dependencies..."

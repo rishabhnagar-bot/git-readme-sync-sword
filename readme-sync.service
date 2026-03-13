@@ -5,9 +5,9 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/readme-sync-pipeline
-EnvironmentFile=/home/ubuntu/readme-sync-pipeline/.env
-ExecStart=/home/ubuntu/readme-sync-pipeline/venv/bin/uvicorn \
+WorkingDirectory=/home/ubuntu/git-readme-sync-sword
+EnvironmentFile=/home/ubuntu/git-readme-sync-sword/.env
+ExecStart=/home/ubuntu/git-readme-sync-sword/venv/bin/uvicorn \
     app:app \
     --host 0.0.0.0 \
     --port 5000 \
