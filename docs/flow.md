@@ -148,5 +148,3 @@ Each `.docx` is only updated when its corresponding source repo gets a push. The
 3. That's it. First push auto-clones the repo on EC2 and everything flows.
 
 No config files to edit, no code to change, no deployments to make.
-
-Ready to create the repo and set up the EC2?
